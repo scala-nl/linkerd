@@ -101,11 +101,13 @@ class HttpEndToEndTest extends FunSuite with Awaits {
       get("felix") { rsp =>
         assert(rsp.status == Status.Ok)
         assert(rsp.contentString == "meow")
+        ()
       }
 
       get("clifford", "/the/big/red/dog") { rsp =>
         assert(rsp.status == Status.Ok)
         assert(rsp.contentString == "woof")
+        ()
       }
 
       // todo check stats
@@ -158,7 +160,7 @@ class HttpEndToEndTest extends FunSuite with Awaits {
 
     val stats = new InMemoryStatsReceiver
     def downstreamCounter(name: String) = {
-      val k = Seq("http", "client", s"$$/inet/127.1/${downstream.port}", name)
+      val k = Seq("client", s"$$/inet/127.1/${downstream.port}", name)
       stats.counters.get(k)
     }
 
@@ -239,7 +241,7 @@ class HttpEndToEndTest extends FunSuite with Awaits {
 
     val stats = new InMemoryStatsReceiver
     def downstreamCounter(name: String) = {
-      val k = Seq("http", "client", s"$$/inet/127.1/${downstream.port}", name)
+      val k = Seq("client", s"$$/inet/127.1/${downstream.port}", name)
       stats.counters.get(k)
     }
     def serverCounter(name: String) = {

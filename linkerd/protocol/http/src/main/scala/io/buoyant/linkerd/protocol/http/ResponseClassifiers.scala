@@ -9,6 +9,7 @@ import com.twitter.finagle.service.{ResponseClass, ReqRep, ResponseClassifier}
 import com.twitter.util.{NonFatal, Return, Throw, Try}
 import io.buoyant.config.ConfigInitializer
 import io.buoyant.linkerd.{ResponseClassifierConfig, ResponseClassifierInitializer}
+import io.buoyant.router.ClassifiedRetries
 
 object ResponseClassifiers {
 
@@ -46,6 +47,13 @@ object ResponseClassifiers {
     ))
   }
 
+  /**
+   * Matches badly-framed responses
+   */
+  val FramingExceptionsOnly: PartialFunction[Try[Nothing], Boolean] = {
+    case Throw(FramingFilter.FramingException(_)) => true
+  }
+
   object Responses {
 
     object Failure {
@@ -64,7 +72,9 @@ object ResponseClassifiers {
 
   object RetryableResult {
     private[this] val retryableThrow: PartialFunction[Try[Nothing], Boolean] =
-      TimeoutAndWriteExceptionsOnly.orElse(ChannelClosedExceptionsOnly).orElse { case _ => false }
+      TimeoutAndWriteExceptionsOnly.orElse(ChannelClosedExceptionsOnly)
+        .orElse(FramingExceptionsOnly)
+        .orElse { case _ => false }
 
     def unapply(rsp: Try[Any]): Boolean = rsp match {
       case Return(Responses.Failure.Retryable()) => true
@@ -110,10 +120,14 @@ object ResponseClassifiers {
 
   def HeaderRetryable(classifier: ResponseClassifier): ResponseClassifier =
     ResponseClassifier.named(s"HeaderRetryable[$classifier]") {
-      case rr@ReqRep(req, Return(rsp: Response)) if classifier.isDefinedAt(rr) =>
+      case rr if classifier.isDefinedAt(rr) =>
         val rc = classifier(rr)
-        if (rc == ResponseClass.NonRetryableFailure && Headers.Retryable.get(rsp.headerMap)) {
-          ResponseClass.RetryableFailure
+        if (rc == ResponseClass.NonRetryableFailure) {
+          rr match {
+            case ReqRep(req, Return(rsp: Response)) if Headers.Retryable.get(rsp.headerMap) =>
+              ResponseClass.RetryableFailure
+            case _ => rc
+          }
         } else {
           rc
         }
@@ -152,3 +166,14 @@ class NonRetryable5XXInitializer extends ResponseClassifierInitializer {
 }
 
 object NonRetryable5XXInitializer extends NonRetryable5XXInitializer
+
+class AllSuccessfulConfig extends ResponseClassifierConfig {
+  def mk: ResponseClassifier = ClassifiedRetries.Default
+}
+
+class AllSuccessfulInitializer extends ResponseClassifierInitializer {
+  val configClass = classOf[AllSuccessfulConfig]
+  override val configId = "io.l5d.http.allSuccessful"
+}
+
+object AllSuccessfulInitializer extends AllSuccessfulInitializer

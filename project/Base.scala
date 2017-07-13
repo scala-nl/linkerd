@@ -32,14 +32,29 @@ object Base {
 class Base extends Build {
   import Base._
 
-  val headVersion = "1.0.0"
+  val headVersion = "1.1.2"
 
   object Git {
     def git(arg: String, args: String*) = Process("git" +: arg +: args)
-    val headRevision = git("rev-parse", "--short", "HEAD").!!.trim
-    val version = git("name-rev", "--tags", "--name-only", headRevision).!!.trim match {
-      case tag if tag == headVersion || tag == s"${headVersion}^0" => headVersion
-      case _ => s"$headVersion-SNAPSHOT"
+    val devnull = new ProcessLogger {
+      def info (s: => String) {}
+      def error (s: => String) { }
+      def buffer[T] (f: => T): T = f
+    }
+    val noGit = git("status").!<(devnull) != 0
+    val version = {
+      if (noGit) headVersion
+      else {
+        val headRevision = git("rev-parse", "--short", "HEAD").!!.trim
+        git("name-rev", "--tags", "--name-only", headRevision).!!.trim match {
+          case tag if tag == headVersion || tag == s"${headVersion}^0" => headVersion
+          case _ => s"$headVersion-SNAPSHOT"
+        }
+      }
+    }
+    val revision = {
+      if (noGit) ""
+      else git("rev-parse", "HEAD").!!.trim
     }
   }
 
@@ -47,7 +62,8 @@ class Base extends Build {
     organization := "io.buoyant",
     version := Git.version,
     homepage := Some(url("https://linkerd.io")),
-    scalaVersion in GlobalScope := "2.11.7",
+    scalaVersion in GlobalScope := "2.12.1",
+    crossScalaVersions in GlobalScope := Seq("2.11.11", "2.12.1"),
     ivyScala := ivyScala.value.map(_.copy(overrideScalaVersion = true)),
     scalacOptions ++=
       Seq("-Xfatal-warnings", "-deprecation", "-Ywarn-value-discard", "-feature"),
@@ -58,6 +74,8 @@ class Base extends Build {
       Resolver.mavenLocal,
       "typesafe" at "https://repo.typesafe.com/typesafe/releases"
     ),
+    libraryDependencies += compilerPlugin("com.github.ghik" %% "silencer-plugin" % "0.5"),
+    libraryDependencies += "com.github.ghik" %% "silencer-lib" % "0.5",
     aggregate in assembly := false,
     (developTwitterDeps in Global) := { sys.env.get("TWITTER_DEVELOP") == Some("1") },
 
@@ -137,7 +155,7 @@ class Base extends Build {
     assemblyJarName in assembly := s"${name.value}-${version.value}-${configuration.value}-exec",
     docker <<= docker dependsOn (assembly in configuration),
     dockerEnvPrefix := "",
-    dockerJavaImage <<= (dockerJavaImage in Global).?(_.getOrElse("library/java:openjdk-8-jre")),
+    dockerJavaImage <<= (dockerJavaImage in Global).?(_.getOrElse("openjdk:8u131-jre")),
     dockerfile in docker := new Dockerfile {
       val envPrefix = dockerEnvPrefix.value.toUpperCase
       val home = s"/${organization.value}/${name.value}/${version.value}"
@@ -190,6 +208,8 @@ class Base extends Build {
   val testUtil = projectDir("test-util")
     .settings(coverageExcludedPackages := "io.buoyant.test.*")
     .settings(libraryDependencies += Deps.scalatest)
+    .settings(libraryDependencies += Deps.scalacheck)
+    .settings(libraryDependencies += Deps.junit)
     .settings(libraryDependencies ++= {
       val deps = Deps.twitterUtil("core") :: Deps.twitterUtil("logging") :: Nil
       if (doDevelopTwitterDeps.value) {
@@ -239,7 +259,7 @@ class Base extends Build {
     def withE2e(): Project = project
       .configs(EndToEndTest)
       .settings(inConfig(EndToEndTest)(Defaults.testSettings ++ ScoverageSbtPlugin.projectSettings))
-      .settings(libraryDependencies += "org.scoverage" %% "scalac-scoverage-runtime" % "1.1.1" % EndToEndTest)
+      .settings(libraryDependencies += "org.scoverage" %% "scalac-scoverage-runtime" % "1.3.0" % EndToEndTest)
       .dependsOn(testUtil % EndToEndTest)
 
     def withExamples(runtime: Project, configs: Seq[(Configuration, Configuration)]): Project = {
@@ -261,7 +281,7 @@ class Base extends Build {
     def withBuildProperties(path: String): Project = project
       .settings((resourceGenerators in Compile) <+=
         (resourceManaged in Compile, name, version).map { (dir, name, ver) =>
-          val rev = Process("git" :: "rev-parse" :: "HEAD" :: Nil).!!.trim
+          val rev = Git.revision
           val build = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date)
           val contents = s"name=$name\nversion=$ver\nbuild_revision=$rev\nbuild_name=$build"
           val file = dir / path / "build.properties"

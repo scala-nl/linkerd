@@ -1,3 +1,84 @@
+## 1.1.2 2017-07-12
+
+* Marathon Namer TLS support, for DC/OS strict mode.
+* We fixed an issue where requests that time out were not being retried.
+* HTTP 1.1 protocol fixes for chunked transfer encoding and `Content-Length`.
+* Improved memory allocation in InfluxDb and Prometheus telemeters.
+* Documentation fixes.
+
+## 1.1.1 2017-07-10
+
+This is a big release with lots of fun stuff inside.
+
+We've added some new features!
+* Linkerd now features integration with Istio! (Beta.) This is a big feature. Blog post coming soon.
+* We've introduced a new request logger plugin interface, for plugins that take an action (such as logging) on each request. This is currently used by the Istio plugin to report metadata about each request.
+
+We’ve fixed some things!
+* We fixed a connection leak in HTTP/2 by properly multiplexing streams over a single connection.
+* The configured failure accrual backoff parameter was being ignored. Now it's not!
+* We fixed a TLS issue when no trust certs were specified.  As a result, using TLS with egress now works again.
+* We fixed an exception when a Kubernetes Service's `targetPort` value is returned as a name instead of a number.
+* The admin dashboard now displays server connections, standardizing client and server displays.
+
+We’ve made some internal changes to keep up with the latest and greatest:
+* Netty4 is now the default engine for HTTP.
+* We’ve upgrade to Finagle 6.45 under the hood.
+
+## 1.1.0 2017-06-12
+
+* TLS
+  * Add support for client auth TLS.
+  * Add TLS support for `io.l5d.httpController` and `io.l5d.mesh` namerd
+    interfaces.
+* HTTP/2
+  * Reset h2 remote streams that continue to send frames after the local stream
+    has been interrupted.  This fixes a bug that occationally caused the
+    io.l5d.mesh interpreter to hang.
+  * Add support for HTTP/2 tracing.
+* Kubernetes
+  * Fix exception when a loadBalancer object has a hostname instead of an ip.
+  * Fix connection leak when the daemonset transformer cannot connect to the k8s
+    API.
+* Metrics
+  * Improve scoping of metrics for namers and transformers.
+  * Fix rendering of top-level influx metrics.
+* Consul
+  * Cache dtab observations in the io.l5d.consul store.
+  * Fix bug causing consul queries to hang.
+* Expire idle services and clients.
+* **Breaking Change**: Convert `thriftProtocol` from a client/server param to a
+  router param.
+
+## 1.0.2 2017-05-12
+
+* Fix issue where TLS could not be used with H2.
+* Fix linkerd admin dashboard edge case.
+
+## 1.0.1 2017-05-12
+
+* Upgrade to scala 2.12.
+* Upgrade to finagle 6.44.
+* HTTP/1.1:
+  * Fix connection leak when retrying on responses with chunked bodies.
+  * Remove linkerd headers and body when clearContext is set.
+  * Add io.l5d.http.allSuccessful and io.l5d.h2.allSuccessful response classifiers.
+* HTTP/2:
+  * Fix race condition causing every request on a connection to deadline.
+  * Fix memory leak related to tracking closed streams.
+* Kubernetes:
+  * Port numbers in k8s names will now have the service's port mapping applied.
+  * Add `io.l5d.k8s.ns` namer for routing within a fixed namespace.
+* Consul:
+  * Fix issue where the Consul namer would fail to reconnect after ConnectionFailedException.
+* Promethus:
+  * Properly escape metrics labels in the Prometheus telemeter.
+* Namerd:
+  * Add support for telemeters.
+* Fail on duplicate config file properties instead of silently taking the last
+  value.
+* Add path stack registry for better visibility into how services are configured.
+
 ## 1.0.0 2017-04-24
 
 * Configuration:
