@@ -1,5 +1,6 @@
 package com.twitter.finagle.buoyant.h2
 
+import com.twitter.conversions.storage._
 import com.twitter.finagle.{Service, SimpleFilter}
 import com.twitter.util.{Future, Return, Throw}
 
@@ -14,7 +15,10 @@ import com.twitter.util.{Future, Return, Throw}
  * response stream, fork a new child of the request stream, and send the new request stream to
  * the service.  If not, we return the response stream to the caller.
  */
-class ClassifiedRetryFilter() extends SimpleFilter[Request, Response] {
+class ClassifiedRetryFilter(
+  requestBufferSize: Long = 8.kilobytes.bytes,
+  responseBufferSize: Long = 8.kilobytes.bytes
+) extends SimpleFilter[Request, Response] {
   // TODO: accept a ResponseClassifier
   // TODO: accept a Stream of backoffs
 
@@ -24,7 +28,8 @@ class ClassifiedRetryFilter() extends SimpleFilter[Request, Response] {
   ): Future[Response] = {
 
     // Buffer the request stream so that we can fork another child stream if we need to retry
-    val requestBuffer = new BufferedStream(request.stream)
+    val requestBuffer = new BufferedStream(request.stream, requestBufferSize)
+    val fork = Future.const(requestBuffer.fork())
     // begin reading the request stream
     requestBuffer.read()
 
@@ -33,7 +38,7 @@ class ClassifiedRetryFilter() extends SimpleFilter[Request, Response] {
       service(req).flatMap { rsp =>
         // Buffer the response stream so that we can attempt to classify it before returning
         // or discarding it
-        val responseBuffer = new BufferedStream(rsp.stream)
+        val responseBuffer = new BufferedStream(rsp.stream, responseBufferSize)
         // We eagerly create a child response stream since we need something to return in case we
         // don't want to (or can't) retry.
         val responseStream = responseBuffer.fork()
@@ -83,7 +88,7 @@ class ClassifiedRetryFilter() extends SimpleFilter[Request, Response] {
       }
     }
 
-    Future.const(requestBuffer.fork()).flatMap(dispatch)
+    fork.flatMap(dispatch)
   }
 
   /**
