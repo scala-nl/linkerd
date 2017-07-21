@@ -114,13 +114,12 @@ package object v1 {
     def group = v1.group
     def version = v1.version
     override def withNamespace(ns: String) = new NsApi(client, ns)
-    def endpoints = listResource[Endpoints, EndpointsWatch, EndpointsList]()
-    def services = listResource[Service, ServiceWatch, ServiceList]()
   }
 
   class NsApi(client: Client, ns: String)
     extends NsVersion[Object](client, v1.group, v1.version, ns) {
     def endpoints = listResource[Endpoints, EndpointsWatch, EndpointsList]()
+    def endpoints(name: String): NsObjectResource[v1.Endpoints, v1.EndpointsWatch] = endpoints.named(name)
     def services = listResource[Service, ServiceWatch, ServiceList]()
     def configMap(name: String) = objectResource[ConfigMap, ConfigMapWatch](name)
   }
