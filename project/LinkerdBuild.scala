@@ -395,10 +395,10 @@ object LinkerdBuild extends Base {
       .configDependsOn(Dcos)(dcosBootstrap)
       .settings(inConfig(Dcos)(DcosSettings))
       .settings(
-        assembly <<= assembly in Bundle,
-        docker <<= docker in Bundle,
-        dockerBuildAndPush <<= dockerBuildAndPush in Bundle,
-        dockerPush <<= dockerPush in Bundle
+        assembly := (assembly in Bundle).value,
+        docker := (docker in Bundle).value,
+        dockerBuildAndPush := (dockerBuildAndPush in Bundle).value,
+        dockerPush := (dockerPush in Bundle).value
       )
 
     // Find example configurations by searching the examples directory for config files.
@@ -476,6 +476,7 @@ object LinkerdBuild extends Base {
       val h2 = projectDir("linkerd/protocol/h2")
         .dependsOn(core, Router.h2, k8s, Finagle.h2 % "test->test;e2e->test")
         .withTests().withE2e()
+        .withGrpc
         .withTwitterLibs(Deps.finagle("netty4"))
 
       val http = projectDir("linkerd/protocol/http")
@@ -524,7 +525,7 @@ object LinkerdBuild extends Base {
       .withTests()
       .dependsOn(core % "compile->compile;test->test")
       .dependsOn(LinkerdBuild.admin, Namer.core, Router.http)
-      .dependsOn(Protocol.thrift % "test")
+      .dependsOn(Protocol.thrift % "test", Interpreter.perHost % "test")
 
     val main = projectDir("linkerd/main")
       .dependsOn(admin, configCore, core)
@@ -597,10 +598,10 @@ object LinkerdBuild extends Base {
       .configDependsOn(LowMem)(BundleProjects: _*)
       .settings(inConfig(LowMem)(LowMemSettings))
       .settings(
-        assembly <<= assembly in Bundle,
-        docker <<= docker in Bundle,
-        dockerBuildAndPush <<= dockerBuildAndPush in Bundle,
-        dockerPush <<= dockerPush in Bundle
+        assembly := (assembly in Bundle).value,
+        docker := (docker in Bundle).value,
+        dockerBuildAndPush := (dockerBuildAndPush in Bundle).value,
+        dockerPush := (dockerPush in Bundle).value
       )
 
     // Find example configurations by searching the examples directory for config files.
